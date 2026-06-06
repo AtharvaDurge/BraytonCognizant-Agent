@@ -1,5 +1,11 @@
 .env
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
 .DS_Store
 .vscode/
+.idea/
+data/*.txt
+data/*.csv
+*.log
