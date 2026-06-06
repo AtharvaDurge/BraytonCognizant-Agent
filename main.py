@@ -41,7 +41,8 @@ def verify_system_health():
         graph_db = Neo4jGraph(
             url=NEO4J_URI,
             username=NEO4J_USERNAME,
-            password=NEO4J_PASSWORD
+            password=NEO4J_PASSWORD,
+            database=NEO4J_USERNAME  # FORCE the driver to target database name '1bba8b49' instead of default 'neo4j'
         )
         # Force a minimal database schema extraction to validate active permissions
         graph_db.refresh_schema()
