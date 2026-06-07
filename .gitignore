@@ -1,11 +1,34 @@
+# Secrets & Environments
 .env
+venv/
+env/
+.env/
+.venv/
+
+# Python Cache & Bytecode
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# IDEs & System Files
 .DS_Store
 .vscode/
 .idea/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Data Files (Keep structure, ignore content)
 data/*.txt
 data/*.csv
 *.log
+
+# Generated Backend Data
+backend/reports/
+backend/processed_data/
+
+# Distribution
+dist/
+build/
+*.egg-info/

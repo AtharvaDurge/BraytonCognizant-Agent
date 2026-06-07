@@ -1,280 +1,138 @@
 # 🚢 Agentic AI for Marine Diagnostics Using Knowledge Graphs
 
-An enterprise-grade **GraphRAG (Retrieval-Augmented Generation)** system designed for advanced fault diagnostics of aeroderivative naval gas turbines. The application combines **Knowledge Graphs, Large Language Models, and Natural Language Querying** to help marine engineers and ship technicians diagnose engine faults using plain conversational English.
+An enterprise-grade **GraphRAG (Retrieval-Augmented Generation)** system designed for advanced fault diagnostics of aeroderivative naval gas turbines. This system transforms raw sensor telemetry into actionable engineering insights, providing both automated threshold-based alerts and AI-driven causal reasoning.
 
-The system serves as an intelligent translator layer between complex engineering telemetry and human operators, enabling users to explore engine structures, sensor relationships, and degradation pathways without requiring knowledge of database query languages.
-
-The project is built around the **NASA C-MAPSS Turbofan Degradation Dataset (FD001)** and focuses on modeling and diagnosing **High-Pressure Compressor (HPC) degradation behavior**.
-
-
-
-# 🏗️ System Architecture
-
-The application follows a modular three-tier architecture:
-
-## 1. Knowledge Graph Layer (Data Tier)
-
-A cloud-hosted **Neo4j AuraDB** instance stores:
-
-* Engine components
-* Sensor mappings
-* Operational relationships
-* Failure pathways
-* Degradation dependencies
-
-This graph structure enables efficient traversal and contextual retrieval of engineering knowledge.
+The system acts as an intelligent translator layer between complex engine sensor data and human operators, ensuring that all diagnostic decisions are recorded in an **auditable, professional-grade format.**
 
 ---
 
-## 2. API Orchestration Layer (Logic Tier)
+# 🏗️ System Architecture & Data Lifecycle
 
-A **FastAPI** backend acts as the middleware between users, the graph database, and the language model.
+The application follows a modular architecture that ensures **data lineage** and **traceability**:
 
-Responsibilities include:
-
-* Handling API requests
-* Managing graph retrieval workflows
-* Executing GraphRAG pipelines
-* Formatting context for LLM reasoning
-* Returning structured diagnostic responses
-
----
-
-## 3. Intelligence Layer (AI Tier)
-
-The reasoning engine is powered by:
-
-* **Groq Cloud**
-* **Meta Llama 3.3 70B**
-
-This layer interprets user questions, retrieves relevant graph context, and generates human-readable diagnostic explanations.
+1. **Ingestion & Sanitization:** Raw telemetry is ingested and parsed, ensuring consistent column mapping and numerical integrity.
+2. **Archival Layer:** Every test sequence is automatically archived as a clean CSV in `/processed_data/` for future audit and reproducibility.
+3. **Graph Inference Engine:** The system performs live lookups against a **Neo4j AuraDB** instance to fetch calibrated thermodynamic thresholds.
+4. **Audit Reporting:** The system generates a structured, timestamped audit log in `/reports/` for every diagnostic sweep, suitable for formal maintenance documentation.
+5. **Intelligence Layer:** Powered by **Groq (Llama 3.3 70B)** and **LangChain**, the system provides deep causal explanations for identified anomalies based on the graph topology.
 
 ---
 
 # ⚙️ Technology Stack
 
-| Layer                  | Technology            |
-| ---------------------- | --------------------- |
-| Frontend               | HTML, CSS, JavaScript |
-| Backend                | FastAPI               |
-| AI Framework           | LangChain             |
-| Graph Database         | Neo4j AuraDB          |
-| Graph Integration      | langchain-neo4j       |
-| LLM Provider           | Groq                  |
-| Model                  | Llama 3.3 70B         |
-| Validation             | Pydantic              |
-| Environment Management | python-dotenv         |
-| API Server             | Uvicorn               |
-
----
-
-# 🛠 Strategic Engineering Decisions
-
-## Cost-Efficient AI Inference
-
-Instead of relying on commercial paid APIs, the project uses **Groq's LPU (Language Processing Unit)** infrastructure to run **Meta's Llama 3.3 70B** model.
-
-Benefits:
-
-* Extremely low latency
-* High throughput (500+ tokens/sec)
-* Zero inference cost during development
-* Suitable for real-time engineering environments
-
----
-
-## GraphRAG-Based Retrieval
-
-Rather than relying solely on vector search, the application leverages graph relationships to provide:
-
-* Better contextual understanding
-* Deterministic relationship traversal
-* Improved explainability
-* More accurate fault analysis
-
----
-
-## Prompt-Based Reasoning Constraints
-
-Industrial telemetry often contains repetitive sensor records that can cause counting inaccuracies in language models.
-
-To address this:
-
-* Structured Chain-of-Thought (CoT) instructions are embedded within prompts.
-* Models are guided to evaluate records sequentially.
-* Arithmetic verification steps are enforced before response generation.
-
-This improves consistency when reasoning over degradation events and sensor histories.
+| Layer | Technology |
+| --- | --- |
+| **Frontend** | HTML5, CSS3, JavaScript |
+| **Backend** | FastAPI (REST API) |
+| **AI Framework** | LangChain, LangGraph |
+| **Graph Database** | Neo4j AuraDB |
+| **LLM Inference** | Groq (Llama 3.3 70B Versatile) |
+| **Validation** | Pydantic |
+| **Data Handling** | Pandas |
 
 ---
 
 # 📂 Repository Structure
 
 ```text
-marine_diagnostics_system/
-│
-├── frontend/
-│   ├── index.html
-│   ├── style.css
-│   └── script.js
-│
+BraytonCognizant-Agent/
 ├── backend/
-│   ├── main.py
-│   └── ingest_fd001.py
-│
-├── .env.example
-├── .gitignore
-├── requirements.txt
+│   ├── processed_data/    # Archived clean CSV telemetry (Auto-generated)
+│   ├── reports/           # Official Diagnostic Audit Logs (Auto-generated)
+│   ├── scripts/           # Ingestion and analysis utility scripts
+│   │   ├── format_data.py      # Sanitizes raw NASA telemetry (removes noise)
+│   │   ├── analyze_data.py     # Data profiling and threshold calculation
+│   │   ├── inference_engine.py # Automated batch diagnostic evaluator
+│   │   └── ingest_fd001.py     # Neo4j Knowledge Graph deployment script
+│   ├── formatter.py       # Data sanitization logic
+│   └── main.py            # API Orchestrator (Data Pipeline & AI Reasoning)
+├── data/                  # Raw training, test, and RUL datasets (Read-only)
+├── frontend/              # Web-based operator interface
+│   ├── index.html         # Diagnostic dashboard structure
+│   ├── style.css          # Industrial UI styling
+│   └── script.js          # API communication logic
+├── .env                   # Environment secrets (IGNORED)
+├── .env.example.txt       # Template for environment configuration
+├── requirements.txt       # Dependencies
 └── README.md
+
 ```
+
+---
+
+# 🚀 Deployment & Usage Guide
+
+Follow these steps to initialize and run the diagnostic environment:
+
+### Step 1: Environment Setup
+
+1. Clone the repository and navigate to the root directory.
+2. Create your local environment configuration file:
+```bash
+cp .env.example.txt .env
+
+```
+
+
+3. Open `.env` and populate it with your `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, and `GROQ_API_KEY`.
+
+### Step 2: Data Preparation
+
+1. Place your raw NASA C-MAPSS dataset files (`train_FD001.txt`, `test_FD001.txt`, `RUL_FD001.txt`) into the `data/` folder.
+2. Run the processing scripts to generate the cleaned training data (`train_clean.txt`) and calculate baselines:
+```bash
+python backend/scripts/format_data.py
+python backend/scripts/analyze_data.py
+
+```
+
+
+
+### Step 3: Knowledge Graph Priming
+
+Initialize your cloud Knowledge Graph by mapping physical failure chains into Neo4j:
+
+```bash
+python backend/scripts/ingest_fd001.py
+
+```
+
+### Step 4: Launch the API Server
+
+Start the backend orchestration engine:
+
+```bash
+uvicorn backend.main:app --reload
+
+```
+
+### Step 5: Diagnostics & Auditing
+
+1. Access the Frontend UI by opening `frontend/index.html` in your local browser.
+2. Upload a telemetry file via the UI to trigger the **Evaluation Sequence**.
+3. **Automated Batch Evaluation:** Alternatively, run the batch evaluator script:
+```bash
+python backend/scripts/inference_engine.py
+
+```
+
+
+4. **Audit Trail:** View real-time anomalies in the UI, then check `backend/processed_data/` for the archived source CSV and `backend/reports/` for the finalized diagnostic audit log.
+
+---
+
+# 🔬 Data Lineage & Integrity
+
+This system is built for industrial environments where **traceability is mandatory**. By archiving both the *sanitized source data* and the *final diagnostic audit report*, this project enables:
+
+* **Root Cause Analysis:** Trace any engine alert back to its specific sensor telemetry history.
+* **Regulatory Compliance:** Generate immutable logs for every diagnostic procedure performed on assets.
 
 ---
 
 # 📦 Core Dependencies
 
-## FastAPI
-
-High-performance framework used for building the REST API layer.
-
-## Uvicorn
-
-ASGI server responsible for running the FastAPI application.
-
-## Pydantic
-
-Provides request validation and data integrity enforcement.
-
-## Neo4j Driver
-
-Official Python driver for interacting with Neo4j AuraDB.
-
-## LangChain
-
-Framework used for prompt orchestration and LLM workflow management.
-
-## langchain-neo4j
-
-Bridge connecting LangChain workflows with Neo4j graph operations.
-
-## langchain-groq
-
-Provides integration with Groq-hosted language models.
-
-## python-dotenv
-
-Loads secure environment variables from local configuration files.
-
----
-
-# 🚀 Deployment Guide
-
-## Prerequisites
-
-Before running the project, ensure you have:
-
-* Python 3.10+
-* Neo4j AuraDB account
-* Groq Cloud account and API key
-
----
-
-## Step 1: Clone the Repository
-
-```bash
-git clone https://github.com/your-username/marine_diagnostics_system.git
-
-cd marine_diagnostics_system
-```
-
----
-
-## Step 2: Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Step 3: Configure Environment Variables
-
-Create a local environment file:
-
-```bash
-cp .env.example .env
-```
-
-Populate the `.env` file:
-
-```env
-NEO4J_URI=bolt+routing://your-instance.databases.neo4j.io:7687
-
-NEO4J_USERNAME=neo4j
-
-NEO4J_PASSWORD=your_auradb_password
-
-GROQ_API_KEY=gsk_your_groq_api_key
-```
-
-> The `.gitignore` file is configured to prevent accidental exposure of secrets.
-
----
-
-## Step 4: Load Dataset into Neo4j
-
-Execute the ingestion script:
-
-```bash
-cd backend
-
-python ingest_fd001.py
-```
-
-This script:
-
-* Parses NASA FD001 data
-* Creates graph entities
-* Builds sensor relationships
-* Establishes degradation pathways
-
----
-
-## Step 5: Launch the API Server
-
-```bash
-uvicorn main:app --reload
-```
----
-
-## Step 6: Open Interactive API Documentation
-
-Once the application starts successfully, access the automatically generated Swagger UI documentation using the local server URL displayed in your terminal.
-
-Swagger UI provides:
-
-- Endpoint testing
-- Request inspection
-- Response visualization
-- API experimentation
-
----
-
-# 🔬 Dataset
-
-This project uses the publicly available:
-
-**NASA C-MAPSS Turbofan Engine Degradation Simulation Dataset (FD001)**
-
-The dataset provides:
-
-* Engine operational settings
-* Sensor measurements
-* Simulated degradation trajectories
-* Remaining Useful Life (RUL) behavior
-
-The graph schema has been adapted specifically for marine gas turbine diagnostic workflows.
-
----
-
-
-
+* **FastAPI/Uvicorn:** High-concurrency API handling.
+* **LangChain/Groq:** Orchestrating multi-hop causal reasoning.
+* **Pandas:** Tabular data transformation and cleaning.
+* **Neo4j Driver:** Graph database communication.
