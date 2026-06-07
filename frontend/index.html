@@ -3,22 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BraytonCognizant | Marine Diagnostic AI</title>
+    <title>Marine Intelligent Diagnostic Hub</title>
     <link rel="stylesheet" href="style.css">
 </head>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <body>
-    <div class="app-wrapper">
-        <main class="chat-main">
-            <header>
-                <h1>AeroDiagnostic Engine Core</h1>
-            </header>
-            <div id="chat-box"></div>
-            <div class="input-area">
-                <input type="text" id="user-input" placeholder="Query HPC fault pathways..." autocomplete="off">
-                <button onclick="sendMessage()">RUN DIAGNOSTIC</button>
+    <div class="app-container">
+        <header class="app-header">
+            <h2>AeroDiagnostic Engine Interface</h2>
+            <span class="status-badge">System Ready</span>
+        </header>
+
+        <section class="chat-section">
+            <div class="chat-box" id="chat-output">
+                <div class="message assistant-msg">
+                    Welcome. Ask a technical query regarding sensor boundaries or component configuration paths.
+                </div>
             </div>
-        </main>
+            <div class="input-panel">
+                <input type="text" id="user-input" placeholder="Enter diagnostic question..." autocomplete="off">
+                <button id="send-btn">Submit Query</button>
+            </div>
+        </section>
+
+        <section class="evaluation-section">
+            <div class="eval-card">
+                <h3>Automated Telemetry Evaluation Sequence</h3>
+                <p>Upload a time-series telemetry dataset (e.g., test text files) to cross-check terminal engine boundaries live with cloud topology rules.</p>
+                
+                <div class="file-upload-wrapper" style="margin-bottom: 15px;">
+                    <input type="file" id="test-file-input" accept=".txt,.csv" style="font-size: 0.9rem; color: #495057;">
+                </div>
+
+                <button id="run-test-btn">Run Uploaded Test Sequence</button>
+                
+                <div class="results-window" id="test-results" style="display: none;">
+                    <h4>Active Diagnostic Telemetry Ingestion Output:</h4>
+                    <pre id="logs-output"></pre>
+                </div>
+            </div>
+        </section>
     </div>
     <script src="script.js"></script>
 </body>
