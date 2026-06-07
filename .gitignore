@@ -27,8 +27,12 @@ data/*.csv
 # Generated Backend Data
 backend/reports/
 backend/processed_data/
+# Exception: Allow the .gitkeep files so the folders are tracked
+!backend/reports/.gitkeep
+!backend/processed_data/.gitkeep
 
 # Distribution
 dist/
 build/
 *.egg-info/
+
