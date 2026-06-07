@@ -1,18 +1,72 @@
-import pandas as pd
 import os
+import pandas as pd
+from neo4j import GraphDatabase
+from dotenv import load_dotenv
 
-data_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'train_FD001.txt')
-cols = ['unit', 'cycle'] + [f'set{i}' for i in range(1, 4)] + [f's{i}' for i in range(1, 22)]
+# 1. SETUP ENVIRONMENT & CREDENTIALS
+load_dotenv()
+URI = os.getenv("NEO4J_URI")
+USER = os.getenv("NEO4J_USERNAME")
+PWD = os.getenv("NEO4J_PASSWORD")
 
-df = pd.read_csv(data_path, sep=' ', header=None, names=cols)
+# 2. DEFINITIVE NASA C-MAPSS FD001 COLUMN MAP (0-indexed)
+column_map = {
+    'T24': 6, 'T30': 7, 'T50': 8, 'P30': 11, 'Nf': 12,
+    'Nc': 13, 'Ps30': 15, 'HpcBleed': 16, 'W31': 23, 'W32': 24
+}
 
-healthy_df = df[df['cycle'] <= 20]
-baseline_stats = healthy_df.mean()
+def push_to_neo4j(sensor_id, threshold):
+    driver = GraphDatabase.driver(URI, auth=(USER, PWD))
+    try:
+        with driver.session() as session:
+            query = """
+            MATCH (s:Sensor {id: $id})
+            SET s.critical_threshold = $threshold
+            RETURN s.id, s.critical_threshold
+            """
+            session.run(query, id=sensor_id, threshold=float(threshold))
+    finally:
+        driver.close()
 
-relevant_sensors = ['s2', 's3', 's4', 's7', 's8', 's9', 's11', 's12', 's14', 's15', 's17', 's20', 's21']
+# 3. ABSOLUTE PATH RESOLUTION
+# Finds the project root regardless of script sub-folder location
+script_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.abspath(os.path.join(script_dir, '..', '..'))
+data_path = os.path.join(root_dir, 'data', 'train_clean.txt')
+output_path = os.path.join(root_dir, 'data', 'baseline_thresholds.csv')
 
-clean_stats = baseline_stats[relevant_sensors].dropna()
+print(f"DEBUG: Looking for data at: {data_path}")
 
-print(clean_stats)
+try:
+    if not os.path.exists(data_path):
+        print(f"CRITICAL ERROR: File not found at {data_path}")
+    else:
+        df = pd.read_csv(data_path, sep=r'\s+', header=None, engine='python')
+        print("\n===== COLUMN DEBUG =====")
+        print(df.iloc[0])
+        print("========================\n")
+        print(f"DEBUG: Data loaded successfully. Shape: {df.shape}")
 
-clean_stats.to_csv('baseline_thresholds.csv')
+        # Healthy baseline: Cycles 1-20
+        healthy_df = df[df[1] <= 20]
+
+        print("\n--- CALCULATING & PUSHING THRESHOLDS ---")
+        results = []
+        for s, idx in column_map.items():
+            print(f"{s} -> Column {idx}")
+            print(healthy_df[idx].head())
+            print("----------------")
+        for s, idx in column_map.items():
+          
+            val = healthy_df[idx].mean() * 1.01
+            print(f"Pushing {s}: {val:.4f} to Neo4j...")
+            push_to_neo4j(s, val)
+            results.append({'sensor': s, 'threshold': val})
+
+        # Save to CSV in the project root/data folder
+        pd.DataFrame(results).to_csv(output_path, index=False)
+        print(f"\nDEBUG: Thresholds saved to {output_path}")
+        print("DEBUG: Successfully synced all thresholds to Neo4j!")
+
+except Exception as e:
+    print(f"DEBUG: Error occurred: {e}")
