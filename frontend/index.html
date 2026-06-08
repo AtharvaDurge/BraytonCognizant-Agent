@@ -10,18 +10,31 @@
     <div class="app-container">
         <header class="app-header">
             <h2>AeroDiagnostic Engine Interface</h2>
-            <span class="status-badge">System Ready</span>
+            <span class="status-badge">Agentic AI Active</span>
         </header>
 
         <section class="chat-section">
             <div class="chat-box" id="chat-output">
                 <div class="message assistant-msg">
-                    Welcome. Ask a technical query regarding sensor boundaries or component configuration paths.
+                    Welcome. Submit an inspection log query or telemetry sheet to evaluate deep component fault paths.
                 </div>
             </div>
             <div class="input-panel">
-                <input type="text" id="user-input" placeholder="Enter diagnostic question..." autocomplete="off">
+                <input type="text" id="user-input" placeholder="Enter diagnostic query (e.g., Engine Unit #3 has anomalies)..." autocomplete="off">
                 <button id="send-btn">Submit Query</button>
+            </div>
+        </section>
+
+        <section class="feedback-panel" id="feedback-panel" style="display: none; padding: 15px; background: #f1f5f9; border-top: 2px solid #cbd5e1;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong style="color: #1e293b; font-size: 0.9rem;">🤖 Inferred Fault: <span id="target-fault-display">None</span></strong>
+                    <div style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">Verify diagnosis to optimize Knowledge Graph edge weights.</div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button id="confirm-true-btn" style="background: #10b981; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">Correct (Reinforce Path)</button>
+                    <button id="confirm-false-btn" style="background: #ef4444; color: white; border: none; padding: 6px 12px; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem;">Incorrect (Penalize)</button>
+                </div>
             </div>
         </section>
 
