@@ -263,7 +263,3 @@ This means the system gets more accurate with every diagnostic cycle — faults 
 - `processed_data/` and `reports/` are excluded from version control as they contain operational data
 
 ---
-
-## 📜 License
-
-MIT License — see `LICENSE` for details.
