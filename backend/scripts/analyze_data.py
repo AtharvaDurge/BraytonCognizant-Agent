@@ -124,7 +124,19 @@ def update_sensor_threshold(sensor_id, threshold):
 
 # 2. ABSOLUTE PATH RESOLUTION
 script_dir = os.path.dirname(os.path.abspath(__file__))
-root_dir = os.path.abspath(os.path.join(script_dir, '..', '..'))
+
+def find_project_root(start_dir):
+    current = start_dir
+    for _ in range(5):
+        if os.path.isdir(os.path.join(current, 'data')):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    return os.path.dirname(start_dir)
+
+root_dir = find_project_root(script_dir)
 data_path = os.path.join(root_dir, 'data', 'train_clean.txt')
 output_path = os.path.join(root_dir, 'data', 'baseline_thresholds.csv')
 
@@ -137,7 +149,7 @@ try:
         # Run deep structural graph builder first
         initialize_deep_knowledge_graph()
 
-        df = pd.read_csv(data_path, sep=r'\s+', header=None, engine='python')
+        df = pd.read_csv(data_path, sep='\t', header=None, engine='python')
         print(f"DEBUG: Data loaded successfully. Shape: {df.shape}")
 
         # Healthy baseline: Cycles 1-20

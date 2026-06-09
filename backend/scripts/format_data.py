@@ -1,7 +1,21 @@
 import os
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
-base_dir = os.path.dirname(os.path.dirname(script_dir)) if script_dir.endswith("scripts") else os.path.dirname(script_dir)
+
+# Walk up to find the project root (the directory that contains 'data/')
+def find_project_root(start_dir):
+    current = start_dir
+    for _ in range(5):  # Search up to 5 levels up
+        if os.path.isdir(os.path.join(current, 'data')):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            break
+        current = parent
+    # Fallback: assume script is inside <root>/scripts/ or directly in root
+    return os.path.dirname(start_dir) if start_dir.endswith("scripts") else start_dir
+
+base_dir = find_project_root(script_dir)
 raw_path = os.path.join(base_dir, 'data', 'train_FD001.txt')
 clean_path = os.path.join(base_dir, 'data', 'train_clean.txt')
 
