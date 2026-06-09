@@ -99,10 +99,7 @@ Edge weights start at `0.50` and are updated via a reinforcement loop — confir
 ```
 BraytonCognizant-Agent/
 ├── backend/
-│   ├── data/                        # Raw NASA datasets
-│   │   ├── train_FD001.txt
-│   │   ├── test_FD001.txt
-│   │   └── RUL_FD001.txt
+│   ├── data/                        # Place NASA datasets here (not committed, see below)
 │   ├── scripts/
 │   │   ├── format_data.py           # Step 1: Sanitise raw telemetry
 │   │   ├── analyze_data.py          # Step 2: Build graph + calibrate thresholds
@@ -122,6 +119,44 @@ BraytonCognizant-Agent/
 ├── requirements.txt
 └── README.md
 ```
+
+---
+
+## 📦 Dataset
+
+The NASA C-MAPSS FD001 dataset is not included in this repository.
+
+Download it from the [NASA Prognostics Data Repository](https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/) and place the following files into the `backend/data/` folder:
+
+- `train_FD001.txt`
+- `test_FD001.txt`
+- `RUL_FD001.txt`
+
+**Dataset Properties:**
+
+| Property | Value |
+|---|---|
+| Source | NASA Prognostics Data Repository |
+| Engines (Train) | 100 |
+| Engines (Test) | 100 |
+| Operating Condition | Single (Sea Level) |
+| Fault Mode | HPC Degradation |
+| Sensors Monitored | 21 (10 used for diagnostics) |
+
+**Monitored Sensors:**
+
+| Sensor ID | Description | Column |
+|---|---|---|
+| T24 | Total temperature — LPC outlet | S2 |
+| T30 | Total temperature — HPC outlet | S3 |
+| T50 | Total temperature — LPT outlet | S4 |
+| P30 | Total pressure — HPC outlet | S7 |
+| Nf | Physical fan speed | S8 |
+| Nc | Physical core speed | S9 |
+| Ps30 | Static pressure — HPC outlet | S11 |
+| HpcBleed | Fuel flow ratio to Ps30 | S12 |
+| W31 | HPT coolant bleed | S19 |
+| W32 | LPT coolant bleed | S20 |
 
 ---
 
@@ -190,34 +225,6 @@ python backend/scripts/inference_engine.py
 ```
 
 This sends all 100 test engines through the full pipeline — threshold evaluation, agentic RCA, graph weight updates — and prints a live diagnostic feed to the terminal.
-
----
-
-## 📊 Dataset — NASA C-MAPSS FD001
-
-| Property | Value |
-|---|---|
-| Source | NASA Prognostics Data Repository |
-| Engines (Train) | 100 |
-| Engines (Test) | 100 |
-| Operating Condition | Single (Sea Level) |
-| Fault Mode | HPC Degradation |
-| Sensors Monitored | 21 (10 used for diagnostics) |
-
-**Monitored Sensors:**
-
-| Sensor ID | Description | Column |
-|---|---|---|
-| T24 | Total temperature — LPC outlet | S2 |
-| T30 | Total temperature — HPC outlet | S3 |
-| T50 | Total temperature — LPT outlet | S4 |
-| P30 | Total pressure — HPC outlet | S7 |
-| Nf | Physical fan speed | S8 |
-| Nc | Physical core speed | S9 |
-| Ps30 | Static pressure — HPC outlet | S11 |
-| HpcBleed | Fuel flow ratio to Ps30 | S12 |
-| W31 | HPT coolant bleed | S19 |
-| W32 | LPT coolant bleed | S20 |
 
 ---
 
