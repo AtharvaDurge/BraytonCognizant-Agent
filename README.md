@@ -1,127 +1,269 @@
----
+# 🚢 BraytonCognizant — Agentic AI Marine Diagnostics via Knowledge Graphs
 
-# 🚢 Agentic AI for Marine Diagnostics Using Knowledge Graphs
-
-An enterprise-grade **GraphRAG (Retrieval-Augmented Generation)** system designed for advanced fault diagnostics of aeroderivative naval gas turbines. This system transforms raw sensor telemetry into actionable engineering insights, providing both automated threshold-based alerts and AI-driven causal reasoning.
-
-The system acts as an intelligent translator layer between complex engine sensor data and human operators, ensuring that all diagnostic decisions are recorded in an **auditable, professional-grade format.**
+> An enterprise-grade **GraphRAG** system for fault diagnostics of aeroderivative naval gas turbines. Transforms raw sensor telemetry from NASA C-MAPSS FD001 into auditable, AI-driven root cause analysis reports — powered by a Neo4j knowledge graph, Groq (Llama 3.3 70B), and a self-reinforcing learning loop.
 
 ---
 
-# 🏗️ System Architecture & Data Lifecycle
+## 📌 What This System Does
 
-The application follows a modular architecture that ensures **data lineage** and **traceability**:
+Most predictive maintenance tools tell you *that* something is wrong. This system tells you *why* — and learns from every confirmed diagnosis.
 
-1. **Ingestion & Sanitization:** Raw telemetry is ingested and parsed, ensuring consistent column mapping and numerical integrity.
-2. **Archival Layer:** Every test sequence is automatically archived as a clean CSV in `/backend/processed_data/` for future audit and reproducibility.
-3. **Graph Inference Engine:** The system performs live lookups against a **Neo4j AuraDB** instance to fetch calibrated thermodynamic thresholds.
-4. **Audit Reporting:** The system generates a structured, timestamped audit log in `/backend/reports/` for every diagnostic sweep, suitable for formal maintenance documentation.
-5. **Intelligence Layer:** Powered by **Groq (Llama 3.3 70B)** and **LangChain**, the system performs multi-hop reasoning to pinpoint structural root causes.
+The pipeline:
+1. **Ingests** raw engine telemetry from NASA C-MAPSS FD001 test sequences
+2. **Compares** the final cycle of each engine against calibrated thermodynamic thresholds stored in Neo4j
+3. **Flags** sensors that have breached their healthy baseline limits
+4. **Runs an agentic RCA loop** — an LLM with graph-aware tools reasons across the knowledge graph to identify the root cause component
+5. **Updates edge weights** in the graph based on confirmed diagnoses (reinforcement learning)
+6. **Generates** a timestamped audit log for every diagnostic sweep
 
 ---
 
-# ⚙️ Technology Stack
+## 🏗️ System Architecture
+
+```
+Raw Telemetry (NASA C-MAPSS FD001)
+         │
+         ▼
+┌─────────────────────┐
+│   format_data.py    │  Sanitizes whitespace, standardises column delimiters
+└────────┬────────────┘
+         │
+         ▼
+┌─────────────────────┐
+│   analyze_data.py   │  Builds Neo4j knowledge graph hierarchy + calibrates
+│                     │  sensor thresholds from healthy baseline (cycles 1–20)
+└────────┬────────────┘
+         │
+         ▼
+┌──────────────────────────────────────────────────┐
+│                  main.py (FastAPI)               │
+│                                                  │
+│  POST /api/evaluate-upload  →  Threshold check   │
+│  POST /api/query            →  Agentic RCA loop  │
+│  POST /api/diagnose/feedback →  Graph learning   │
+└────────┬─────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────┐        ┌──────────────────────────┐
+│  inference_engine   │ ──────▶│  Neo4j Knowledge Graph   │
+│  (batch evaluator)  │        │  Subsystem → Component   │
+└─────────────────────┘        │  → FailureMode → Sensor  │
+         │                     └──────────────────────────┘
+         ▼
+  📄 Audit Log (reports/)
+  📦 Clean CSV Archive (processed_data/)
+```
+
+---
+
+## 🧠 Knowledge Graph Schema
+
+The Neo4j graph encodes a 4-layer mechanical hierarchy:
+
+```
+Subsystem
+   └── Component
+          └── FailureMode  ──[CAUSES_ANOMALY {weight}]──▶  Sensor
+```
+
+**Failure Modes & Sensor Edges:**
+
+| Failure Mode | Severity | Linked Sensors |
+|---|---|---|
+| LPC Blade Fouling | Medium | T24, Nf |
+| HPC Structural Degradation | High | T30, P30, Nc, Ps30, HpcBleed |
+| Combustor Nozzle Clogging | Critical | P30, HpcBleed |
+| HPT Blade Thermal Erosion | High | T50, W31 |
+| LPT Efficiency Loss | Medium | T50, W32 |
+
+Edge weights start at `0.50` and are updated via a reinforcement loop — confirmed diagnoses push weights toward `1.0`, incorrect ones decay toward `0.0`.
+
+---
+
+## ⚙️ Technology Stack
 
 | Layer | Technology |
-| --- | --- |
-| **Frontend** | HTML5, CSS3, JavaScript |
-| **Backend** | FastAPI (REST API) |
-| **AI Framework** | LangChain, LangGraph |
-| **Graph Database** | Neo4j AuraDB |
-| **LLM Inference** | Groq (Llama 3.3 70B Versatile) |
+|---|---|
+| Frontend | HTML5, CSS3, Vanilla JavaScript |
+| Backend API | FastAPI + Uvicorn |
+| AI Framework | LangChain + LangChain-Groq |
+| LLM | Groq — Llama 3.3 70B Versatile |
+| Graph Database | Neo4j AuraDB |
+| Data Processing | Pandas |
+| Dataset | NASA C-MAPSS FD001 |
 
 ---
 
-# 📂 Project Structure
+## 📂 Project Structure
 
-```text
+```
 BraytonCognizant-Agent/
 ├── backend/
-│   ├── processed_data/    # Archived clean CSV telemetry (Auto-generated)
-│   ├── reports/           # Official Diagnostic Audit Logs (Auto-generated)
-│   ├── scripts/           # Ingestion and analysis utility scripts
-│   │   ├── analyze_data.py      # Data profiling and threshold calculation
-│   │   ├── format_data.py       # Sanitizes raw NASA telemetry
-│   │   ├── inference_engine.py  # Automated batch diagnostic evaluator
-│   │   └── ingest_fd001.py      # Neo4j Knowledge Graph deployment script
-│   ├── agent_tools.py           # Reasoning agent tools
-│   ├── formatter.py             # Data sanitization logic
-│   └── main.py                  # API Orchestrator
-├── data/                  # Raw training, test, and RUL datasets
-├── frontend/              # Web-based operator interface
-│   ├── index.html         # Diagnostic dashboard structure
-│   ├── style.css          # Industrial UI styling
-│   └── script.js          # API communication logic
-├── .env                   # Environment secrets (IGNORED)
-├── .env.example.txt       # Template for environment configuration
-├── .gitignore             # Git ignored files/folders
-├── README.md              # Project documentation
-└── requirements.txt       # Dependencies
-
+│   ├── data/                        # Raw NASA datasets
+│   │   ├── train_FD001.txt
+│   │   ├── test_FD001.txt
+│   │   └── RUL_FD001.txt
+│   ├── scripts/
+│   │   ├── format_data.py           # Step 1: Sanitise raw telemetry
+│   │   ├── analyze_data.py          # Step 2: Build graph + calibrate thresholds
+│   │   └── inference_engine.py      # Step 3: Batch RCA evaluator (CLI)
+│   ├── processed_data/              # Auto-generated clean CSV archives
+│   ├── reports/                     # Auto-generated audit logs
+│   ├── agent_tools.py               # LangChain tools for graph querying
+│   ├── formatter.py                 # DataFrame parsing utilities
+│   └── main.py                      # FastAPI server + all route handlers
+├── frontend/
+│   ├── index.html                   # Operator dashboard
+│   ├── style.css                    # Industrial UI styling
+│   └── script.js                    # API communication logic
+├── .env                             # Secret credentials (never committed)
+├── .env.example.txt                 # Credential template
+├── .gitignore
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-# 🚀 Deployment & Usage Guide
+## 🚀 Setup & Usage
 
-### 1. Prerequisites
+### Prerequisites
+- Python 3.10+
+- [Neo4j AuraDB](https://neo4j.com/cloud/aura/) account (free tier works)
+- [Groq API Key](https://console.groq.com/)
 
-* **Python 3.10+** installed.
-* **Neo4j AuraDB Account** (Free tier is sufficient).
-* **Groq API Key** (Obtained from Groq Cloud).
+---
 
-### 2. Environment Setup
+### 1. Clone & Configure
 
-1. Clone the repository.
-2. Create and configure your environment:
 ```bash
-cp .env.example.txt .env
-# Open .env and add your NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, and GROQ_API_KEY
+git clone https://github.com/your-username/BraytonCognizant-Agent.git
+cd BraytonCognizant-Agent
 
+cp .env.example.txt .env
 ```
 
+Open `.env` and fill in your credentials:
+```
+NEO4J_URI=neo4j+s://your-aura-instance.databases.neo4j.io
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_password
+GROQ_API_KEY=your_groq_api_key
+```
 
-3. Install dependencies:
+---
+
+### 2. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
-
 ```
-
-
-
-### 3. Data Preparation & Ingestion
-
-1. Place your dataset files into the `data/` folder.
-2. Run data processing and graph ingestion:
-```bash
-python backend/scripts/format_data.py
-python backend/scripts/analyze_data.py
-python backend/scripts/ingest_fd001.py
-
-```
-
-
-
-### 4. Running the System
-
-1. **Start the API Server:**
-```bash
-uvicorn backend.main:app --reload
-
-```
-
-
-2. **Access the Interface:** Open `frontend/index.html` in your browser.
-3. **Batch Evaluation (Optional):** Run tests via CLI:
-```bash
-python backend/scripts/inference_engine.py
-
-```
-
-
 
 ---
 
-# 🔬 Data Lineage & Integrity
+### 3. Prepare Data & Build the Knowledge Graph
 
-This system is built for industrial environments where **traceability is mandatory**. By archiving both the *sanitized source data* and the *final diagnostic audit report*, this project enables full Root Cause Analysis (RCA) and regulatory compliance.
+```bash
+# Step 1 — Sanitise raw telemetry
+python backend/scripts/format_data.py
+
+# Step 2 — Build Neo4j graph + calibrate thresholds from healthy baseline
+python backend/scripts/analyze_data.py
+```
+
+---
+
+### 4. Start the API Server
+
+```bash
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Server runs at `http://localhost:8000`. Open `frontend/index.html` in your browser for the operator dashboard.
+
+---
+
+### 5. Run Batch Evaluation (CLI)
+
+```bash
+python backend/scripts/inference_engine.py
+```
+
+This sends all 100 test engines through the full pipeline — threshold evaluation, agentic RCA, graph weight updates — and prints a live diagnostic feed to the terminal.
+
+---
+
+## 📊 Dataset — NASA C-MAPSS FD001
+
+| Property | Value |
+|---|---|
+| Source | NASA Prognostics Data Repository |
+| Engines (Train) | 100 |
+| Engines (Test) | 100 |
+| Operating Condition | Single (Sea Level) |
+| Fault Mode | HPC Degradation |
+| Sensors Monitored | 21 (10 used for diagnostics) |
+
+**Monitored Sensors:**
+
+| Sensor ID | Description | Column |
+|---|---|---|
+| T24 | Total temperature — LPC outlet | S2 |
+| T30 | Total temperature — HPC outlet | S3 |
+| T50 | Total temperature — LPT outlet | S4 |
+| P30 | Total pressure — HPC outlet | S7 |
+| Nf | Physical fan speed | S8 |
+| Nc | Physical core speed | S9 |
+| Ps30 | Static pressure — HPC outlet | S11 |
+| HpcBleed | Fuel flow ratio to Ps30 | S12 |
+| W31 | HPT coolant bleed | S19 |
+| W32 | LPT coolant bleed | S20 |
+
+---
+
+## 📄 Sample Audit Output
+
+```
+=== MARINE INTELLIGENT DIAGNOSTIC AUDIT LOG ===
+Source: test_FD001.txt
+Generated: 2026-06-09_13-00-31
+
+ENGINE #34 | Cycle: 203
+ANOMALIES: T50, Ps30
+----------------------------------------
+ENGINE #35 | Cycle: 198
+ANOMALIES: T50, Ps30
+----------------------------------------
+ENGINE #40 | Cycle: 133
+ANOMALIES: T30, T50, Ps30
+----------------------------------------
+```
+
+Audit logs are saved automatically to `backend/reports/` after every evaluation run.
+
+---
+
+## 🔁 Graph Learning Loop
+
+Every confirmed diagnosis feeds back into the knowledge graph:
+
+```
+Confirmed fault  →  edge weight += 0.1 × (1.0 − current_weight)   [converges to 1.0]
+Incorrect fault  →  edge weight -= 0.05 × current_weight            [decays toward 0.0]
+```
+
+This means the system gets more accurate with every diagnostic cycle — faults that are repeatedly confirmed develop stronger graph edges and become higher-priority candidates in future RCA runs.
+
+---
+
+## 🔒 Security Notes
+
+- `.env` is listed in `.gitignore` and must **never** be committed
+- Use `.env.example.txt` as the template for collaborators
+- `processed_data/` and `reports/` are excluded from version control as they contain operational data
+
+---
+
+## 📜 License
+
+MIT License — see `LICENSE` for details.
