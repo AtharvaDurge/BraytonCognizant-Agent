@@ -6,6 +6,16 @@ EVAL_URL = "http://localhost:8000/api/evaluate-upload"
 QUERY_URL = "http://localhost:8000/api/query"
 FEEDBACK_URL = "http://localhost:8000/api/diagnose/feedback"
 
+# Mirrors the exact CAUSES_ANOMALY edges defined in analyze_data.py
+# Only sensors listed here have a real edge in the Neo4j graph for that fault
+FAULT_SENSOR_MAP = {
+    "LPC Blade Fouling":          ["T24", "Nf"],
+    "HPC Structural Degradation": ["T30", "P30", "Nc", "Ps30", "HpcBleed"],
+    "Combustor Nozzle Clogging":  ["P30", "HpcBleed"],
+    "HPT Blade Thermal Erosion":  ["T50", "W31"],
+    "LPT Efficiency Loss":        ["T50", "W32"],
+}
+
 def run_automated_evaluation():
     current_script_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.abspath(os.path.join(current_script_dir, "..", ".."))
@@ -29,7 +39,7 @@ def run_automated_evaluation():
         print(f"❌ Connection error to backend server: {e}")
         return
 
-    for record in ui_records[:3]:
+    for record in ui_records:
         engine_id = record["engine_id"]
         anomalies = record["anomalies"]
         
@@ -46,7 +56,7 @@ def run_automated_evaluation():
             f"Analyze the relationship against your structural knowledge graph to identify the structural root cause component."
         )
         
-        query_response = requests.post(QUERY_URL, json={"question": prompt_query}, timeout=20)
+        query_response = requests.post(QUERY_URL, json={"question": prompt_query}, timeout=120)
         ai_diagnosis = query_response.json().get("diagnostic_answer", "No response.")
         
         print(f"🤖 AI Analytical Synthesis:\n{ai_diagnosis}\n")
@@ -61,10 +71,29 @@ def run_automated_evaluation():
         
         # Fallback safeguard if parsing string matches nothing
         if not detected_fault:
-            detected_fault = "HPC Structural Degradation" if "Ps30" in anomalies else "LPT Efficiency Loss"
+            if "T30" in anomalies or ("Ps30" in anomalies and "T30" in anomalies):
+                detected_fault = "HPC Structural Degradation"
+            elif "Ps30" in anomalies and "T50" in anomalies:
+                detected_fault = "HPC Structural Degradation"
+            elif "T50" in anomalies and "W31" in anomalies:
+                detected_fault = "HPT Blade Thermal Erosion"
+            elif "T50" in anomalies:
+                detected_fault = "LPT Efficiency Loss"
+            elif "Ps30" in anomalies:
+                detected_fault = "HPC Structural Degradation"
+            else:
+                detected_fault = "LPT Efficiency Loss"
 
         print(f"🔄 Simulating Engineer Diagnostic Verification for: {detected_fault}")
+
+        # Only send feedback for sensors that have a real edge to this fault in the KG
+        valid_sensors = FAULT_SENSOR_MAP.get(detected_fault, [])
+
         for sensor in anomalies:
+            if sensor not in valid_sensors:
+                print(f"⏭️  [Graph Learning Skip]: No edge exists for ({detected_fault} -> {sensor}). Skipping.")
+                continue
+
             feedback_payload = {
                 "failure_mode": detected_fault,
                 "sensor_id": sensor,
