@@ -4,6 +4,19 @@ const API_BASE = "http://localhost:8000/api";
 let extractedCurrentFault = null;
 let triggeredAnomaliesList = [];
 
+// Mirrors the exact CAUSES_ANOMALY edges defined in analyze_data.py
+// Only sensors listed here have a real edge in Neo4j for that fault
+const FAULT_SENSOR_MAP = {
+    "LPC Blade Fouling":          ["T24", "Nf"],
+    "HPC Structural Degradation": ["T30", "P30", "Nc", "Ps30", "HpcBleed"],
+    "Combustor Nozzle Clogging":  ["P30", "HpcBleed"],
+    "HPT Blade Thermal Erosion":  ["T50", "W31"],
+    "LPT Efficiency Loss":        ["T50", "W32"],
+};
+
+// All known valid sensor IDs — used to filter regex matches from query text
+const VALID_SENSORS = ["T24", "T30", "T50", "P30", "Nf", "Nc", "Ps30", "HpcBleed", "W31", "W32"];
+
 document.getElementById('send-btn').addEventListener('click', sendQuestion);
 document.getElementById('user-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendQuestion();
@@ -44,8 +57,10 @@ async function sendQuestion() {
                 cleanAnswer = parts[0].trim();
                 extractedCurrentFault = parts[1].trim();
                 
-                // Track current active sensors mentioned in the query input to connect feedback targets
-                triggeredAnomaliesList = questionText.match(/[A-Z][0-9a-zA-Z]+/g) || ["Ps30", "T30"]; 
+                // Extract only real sensor IDs from the query text, not random words
+                triggeredAnomaliesList = questionText
+                    .split(/[\s,]+/)
+                    .filter(token => VALID_SENSORS.includes(token));
 
                 // Show the human feedback configuration panel layout
                 document.getElementById('target-fault-display').innerText = extractedCurrentFault;
@@ -68,30 +83,48 @@ document.getElementById('confirm-false-btn').addEventListener('click', () => sub
 
 async function submitGraphFeedback(isCorrect) {
     if (!extractedCurrentFault) return;
-    
-    const feedbackPanel = document.getElementById('feedback-panel');
-    const sensorToUpdate = triggeredAnomaliesList[0] || "Ps30"; // Fallback target protect
 
-    try {
-        const response = await fetch(`${API_BASE}/diagnose/feedback`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                failure_mode: extractedCurrentFault,
-                sensor_id: sensorToUpdate,
-                is_correct: isCorrect
-            })
-        });
-        const data = await response.json();
-        if (data.status === "Success") {
-            alert(`📈 Graph Learning Sync: Connection weight adjusted to: ${data.new_weight}`);
-            feedbackPanel.style.display = "none";
-        } else {
-            alert(`⚠️ Update Alert: ${data.message}`);
-        }
-    } catch (err) {
-        console.error("Feedback transmission failed:", err);
+    const feedbackPanel = document.getElementById('feedback-panel');
+
+    // Get only the sensors that have a real edge to this fault in the KG
+    const validSensorsForFault = FAULT_SENSOR_MAP[extractedCurrentFault] || [];
+    const sensorsToUpdate = triggeredAnomaliesList.filter(s => validSensorsForFault.includes(s));
+
+    if (sensorsToUpdate.length === 0) {
+        console.warn(`No valid edges found for fault "${extractedCurrentFault}" with sensors: ${triggeredAnomaliesList}`);
+        feedbackPanel.style.display = "none";
+        return;
     }
+
+    // Send one feedback request per valid sensor-fault edge
+    let lastWeight = null;
+    for (const sensor of sensorsToUpdate) {
+        try {
+            const response = await fetch(`${API_BASE}/diagnose/feedback`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    failure_mode: extractedCurrentFault,
+                    sensor_id: sensor,
+                    is_correct: isCorrect
+                })
+            });
+            const data = await response.json();
+            if (data.status === "Success") {
+                lastWeight = data.new_weight;
+                console.log(`📈 Edge (${extractedCurrentFault} -> ${sensor}) updated to weight: ${data.new_weight}`);
+            } else {
+                console.warn(`⚠️ Skipped (${extractedCurrentFault} -> ${sensor}): ${data.message}`);
+            }
+        } catch (err) {
+            console.error(`Feedback transmission failed for sensor ${sensor}:`, err);
+        }
+    }
+
+    if (lastWeight !== null) {
+        alert(`📈 Graph Learning Sync: ${sensorsToUpdate.length} edge(s) updated. Latest weight: ${lastWeight}`);
+    }
+    feedbackPanel.style.display = "none";
 }
 
 // --- TIME-SERIES FILE INGESTION LOGIC ---
