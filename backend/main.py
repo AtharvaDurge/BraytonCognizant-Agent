@@ -31,7 +31,7 @@ app.add_middleware(
 
 # Global Neo4j Connection Driver Instance
 GLOBAL_DRIVER = GraphDatabase.driver(
-    os.getenv("NEO4J_URI"), 
+    os.getenv("NEO4J_URI"),
     auth=(os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
 )
 
@@ -51,10 +51,10 @@ def save_professional_report(filename, ui_records):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     report_dir = os.path.join(script_dir, "reports")
     os.makedirs(report_dir, exist_ok=True)
-    
+
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     report_path = os.path.join(report_dir, f"Audit_{timestamp}_{filename}.txt")
-    
+
     with open(report_path, "w", encoding="utf-8") as f:
         f.write("=== MARINE INTELLIGENT DIAGNOSTIC AUDIT LOG ===\n")
         f.write(f"Source: {filename}\nGenerated: {timestamp}\n\n")
@@ -70,11 +70,11 @@ def save_professional_report(filename, ui_records):
 async def process_user_uploaded_file(file: UploadFile = File(...)):
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        
+
         # 1. Read byte stream and clean layout
         raw_bytes = await file.read()
         test_df = get_clean_dataframe_from_bytes(raw_bytes)
-        
+
         # 2. Archive copy of clean dataset
         archive_dir = os.path.join(script_dir, "processed_data")
         os.makedirs(archive_dir, exist_ok=True)
@@ -97,11 +97,19 @@ async def process_user_uploaded_file(file: UploadFile = File(...)):
                 if record["id"] and record["threshold"] is not None:
                     sensor_thresholds[record["id"]] = float(record["threshold"])
 
+        # Correct NASA C-MAPSS column labels matching formatter.py headers
         sensor_graph_mapping = {
-            "T24": "S2", "T30": "S3", "T50": "S4", "P30": "S7", "Nf": "S8",
-            "Nc": "S9", "Ps30": "S11", "HpcBleed": "S12", "W31": "S19", "W32": "S20"
-        }
-
+    "T24":      "S2",   # col 6  — Total temp at LPC outlet
+    "T30":      "S3",   # col 7  — Total temp at HPC outlet
+    "T50":      "S4",   # col 8  — Total temp at LPT outlet
+    "P30":      "S7",   # col 11 — Total pressure at HPC outlet
+    "Nf":       "S8",   # col 12 — Physical fan speed
+    "Nc":       "S9",   # col 13 — Physical core speed
+    "Ps30":     "S11",  # col 15 — Static pressure at HPC outlet
+    "HpcBleed": "S12",  # col 16 — Ratio of fuel flow to Ps30  (was incorrectly S17)
+    "W31":      "S19",  # col 23 — HPT coolant bleed           (was incorrectly S20)
+    "W32":      "S20",  # col 24 — LPT coolant bleed           (was incorrectly S21)
+}
         ui_records = []
         for engine_id in test_df['unit'].unique():
             engine_data = test_df[test_df['unit'] == engine_id]
@@ -109,17 +117,17 @@ async def process_user_uploaded_file(file: UploadFile = File(...)):
             last_logged_cycle = int(final_row['cycle'])
             idx = int(engine_id) - 1
             assigned_rul = rul_list[idx] if idx < len(rul_list) else "Unknown"
-            
+
             breached_sensors, healthy_sensors = [], []
             for graph_id, nasa_label in sensor_graph_mapping.items():
                 if nasa_label in final_row:
                     val = float(final_row[nasa_label])
                     limit = sensor_thresholds.get(graph_id)
                     if limit and val > limit:
-                        breached_sensors.append(graph_id)  
+                        breached_sensors.append(graph_id)
                     else:
                         healthy_sensors.append(f"{graph_id} ({val:.2f} <= {limit or 'N/A'})")
-            
+
             ui_records.append({
                 "engine_id": int(engine_id),
                 "total_cycles": last_logged_cycle,
@@ -141,7 +149,7 @@ def process_marine_diagnostic(payload: DiagnosticQuery):
         llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.0)
         tools = [get_anomaly_implications, trace_root_component_hierarchy]
         llm_with_tools = llm.bind_tools(tools)
-        
+
         system_instruction = """
         You are an Expert Marine Engine Reasoning Diagnostician executing a Root Cause Analysis (RCA).
         Your primary directive is to resolve the structural component failure causing active telemetry anomalies.
@@ -157,20 +165,20 @@ def process_marine_diagnostic(payload: DiagnosticQuery):
         At the absolute bottom of your final response, output exactly:
         CONFIRMED_FAULT: <Name of the highest-weight failure mode detected>
         """
-        
+
         messages = [SystemMessage(content=system_instruction), HumanMessage(content=payload.question)]
-        
+
         for _ in range(5):
             response = llm_with_tools.invoke(messages)
             messages.append(response)
-            
+
             if not response.tool_calls:
                 break
-                
+
             for tool_call in response.tool_calls:
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
-                
+
                 if tool_name == "get_anomaly_implications":
                     sensors = tool_args.get("breached_sensors", [])
                     observation = get_anomaly_implications.invoke({"breached_sensors": sensors})
@@ -179,17 +187,17 @@ def process_marine_diagnostic(payload: DiagnosticQuery):
                     fm_name = tool_args.get("failure_mode_name", "").strip()
                     print(f"DEBUG: Tracing hierarchy for: '{fm_name}'")
                     observation = trace_root_component_hierarchy.invoke({"failure_mode_name": fm_name})
-                    
+
                     # Help the agent recover if the mapping fails
                     if "Could not map" in observation:
                         observation += " DEBUG: Verify the FailureMode name matches the node in the KG exactly."
                 else:
                     observation = f"Unknown tool execution request: {tool_name}"
-                
+
                 messages.append(ToolMessage(content=str(observation), name=tool_name, tool_call_id=tool_call["id"]))
-                
+
         return {"status": "Success", "diagnostic_answer": messages[-1].content.strip()}
-        
+
     except Exception as e:
         return {"status": "Error", "diagnostic_answer": f"Agent Loop Exception Trace: {str(e)}"}
 
@@ -218,6 +226,7 @@ def submit_diagnostic_feedback(payload: FeedbackPayload):
             return {"status": "Success", "new_weight": round(record["new_weight"], 4)}
     except Exception as e:
         return {"status": "Error", "message": str(e)}
+
 
 @app.get("/health")
 def health_check():

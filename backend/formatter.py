@@ -13,7 +13,7 @@ def get_clean_dataframe_from_bytes(file_bytes: bytes) -> pd.DataFrame:
     ]
     
     df = pd.read_csv(data_buffer, sep=r"\s+", header=None, names=cmapss_headers)
-    return df.apply(pd.to_numeric)
+    return df.apply(pd.to_numeric, errors='coerce')
 
 def get_sensor_mapping(df):
     """Dynamically identifies sensor columns based on value ranges."""
