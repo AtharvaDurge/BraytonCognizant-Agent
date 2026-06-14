@@ -62,7 +62,6 @@ def trace_root_component_hierarchy(failure_mode_name: str) -> str:
     Traces a failure mode upstream to identify its host component and parenting Subsystem.
     Use this tool to pinpoint the exact structural root cause engineering layer responsible for a fault.
     """
-    # Robust input cleaning to handle potential whitespace/formatting issues from the LLM
     clean_name = failure_mode_name.strip()
     
     driver = _get_driver()

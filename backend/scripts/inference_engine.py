@@ -6,8 +6,6 @@ EVAL_URL = "http://localhost:8000/api/evaluate-upload"
 QUERY_URL = "http://localhost:8000/api/query"
 FEEDBACK_URL = "http://localhost:8000/api/diagnose/feedback"
 
-# Mirrors the exact CAUSES_ANOMALY edges defined in analyze_data.py
-# Only sensors listed here have a real edge in the Neo4j graph for that fault
 FAULT_SENSOR_MAP = {
     "LPC Blade Fouling":          ["T24", "Nf"],
     "HPC Structural Degradation": ["T30", "P30", "Nc", "Ps30", "HpcBleed"],
@@ -61,15 +59,12 @@ def run_automated_evaluation():
         
         print(f"🤖 AI Analytical Synthesis:\n{ai_diagnosis}\n")
 
-        # --- SMART LEARNING LOOP EXTRACTOR ---
-        # Parse the true confirmed fault out of the AI response string dynamically
         detected_fault = None
         for line in ai_diagnosis.split("\n"):
             if "CONFIRMED_FAULT:" in line:
                 detected_fault = line.split("CONFIRMED_FAULT:")[-1].strip()
                 break
         
-        # Fallback safeguard if parsing string matches nothing
         if not detected_fault:
             if "T30" in anomalies or ("Ps30" in anomalies and "T30" in anomalies):
                 detected_fault = "HPC Structural Degradation"
@@ -86,7 +81,6 @@ def run_automated_evaluation():
 
         print(f"🔄 Simulating Engineer Diagnostic Verification for: {detected_fault}")
 
-        # Only send feedback for sensors that have a real edge to this fault in the KG
         valid_sensors = FAULT_SENSOR_MAP.get(detected_fault, [])
 
         for sensor in anomalies:

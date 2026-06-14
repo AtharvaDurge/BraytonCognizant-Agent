@@ -8,19 +8,15 @@ from neo4j import GraphDatabase, TrustAll
 from fastapi.middleware.cors import CORSMiddleware
 from formatter import get_clean_dataframe_from_bytes
 
-# Core LangChain and Groq Model Imports
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 
-# Custom structural graph tools built in Phase 2
 from agent_tools import get_anomaly_implications, trace_root_component_hierarchy
 
-# Load Environment Configuration
 load_dotenv()
 
 app = FastAPI(title="Agentic Marine Diagnostics Engine Core", version="3.1.0")
 
-# Enable Cross-Origin Resource Sharing (CORS) for Frontend Integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -46,10 +42,8 @@ def _create_driver():
         )
     return GraphDatabase.driver(uri, auth=auth)
 
-# Global Neo4j Connection Driver Instance
 GLOBAL_DRIVER = _create_driver()
 
-# --- PYDANTIC SCHEMAS ---
 class DiagnosticQuery(BaseModel):
     question: str
 
@@ -59,7 +53,6 @@ class FeedbackPayload(BaseModel):
     is_correct: bool
 
 
-# --- HELPER LOGGING LAYER ---
 def save_professional_report(filename, ui_records):
     """Generates a structured, timestamped audit log text file."""
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -79,31 +72,26 @@ def save_professional_report(filename, ui_records):
     return report_path
 
 
-# --- ROUTE 1: TELEMETRY INGESTION & ALERT VALIDATOR ---
 @app.post("/api/evaluate-upload")
 async def process_user_uploaded_file(file: UploadFile = File(...)):
     try:
         script_dir = os.path.dirname(os.path.abspath(__file__))
 
-        # 1. Read byte stream and clean layout
         raw_bytes = await file.read()
         test_df = get_clean_dataframe_from_bytes(raw_bytes)
 
-        # 2. Archive copy of clean dataset
         archive_dir = os.path.join(script_dir, "processed_data")
         os.makedirs(archive_dir, exist_ok=True)
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         clean_file_path = os.path.join(archive_dir, f"Clean_{timestamp}_{file.filename}.csv")
         test_df.to_csv(clean_file_path, index=False)
 
-        # 3. Load actual Remaining Useful Life reference sheet
         rul_file_path = os.path.abspath(os.path.join(script_dir, "..", "data", "RUL_FD001.txt"))
         rul_list = []
         if os.path.exists(rul_file_path):
             with open(rul_file_path, "r") as f:
                 rul_list = [int(line.strip()) for line in f.readlines() if line.strip()]
 
-        # 4. Pull calibrated database thresholds live from Neo4j
         sensor_thresholds = {}
         with GLOBAL_DRIVER.session() as session:
             result = session.run("MATCH (s:Sensor) RETURN s.id as id, s.critical_threshold as threshold")
@@ -111,7 +99,6 @@ async def process_user_uploaded_file(file: UploadFile = File(...)):
                 if record["id"] and record["threshold"] is not None:
                     sensor_thresholds[record["id"]] = float(record["threshold"])
 
-        # Correct NASA C-MAPSS column labels matching formatter.py headers
         sensor_graph_mapping = {
             "T24":      "S2",   # col 6  — Total temp at LPC outlet
             "T30":      "S3",   # col 7  — Total temp at HPC outlet
@@ -156,7 +143,6 @@ async def process_user_uploaded_file(file: UploadFile = File(...)):
         return {"status": "Error", "message": str(e)}
 
 
-# --- ROUTE 2: AGENTIC ROOT CAUSE REASONING ENGINE ---
 @app.post("/api/query")
 def process_marine_diagnostic(payload: DiagnosticQuery):
     try:
@@ -214,7 +200,6 @@ def process_marine_diagnostic(payload: DiagnosticQuery):
         return {"status": "Error", "diagnostic_answer": f"Agent Loop Exception Trace: {str(e)}"}
 
 
-# --- ROUTE 3: GRAPH LEARNING & CONNECTION REINFORCEMENT ---
 @app.post("/api/diagnose/feedback")
 def submit_diagnostic_feedback(payload: FeedbackPayload):
     try:

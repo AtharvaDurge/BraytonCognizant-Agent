@@ -5,7 +5,6 @@ def get_clean_dataframe_from_bytes(file_bytes: bytes) -> pd.DataFrame:
     text_data = file_bytes.decode("utf-8")
     data_buffer = io.StringIO(text_data)
     
-    # NASA C-MAPSS FD001: 26 columns total
     cmapss_headers = [
         'unit', 'cycle', 'op1', 'op2', 'op3',
         'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'S10',
@@ -17,8 +16,6 @@ def get_clean_dataframe_from_bytes(file_bytes: bytes) -> pd.DataFrame:
 
 def get_sensor_mapping(df):
     """Dynamically identifies sensor columns based on value ranges."""
-    # Mapping based on NASA physical telemetry ranges
-    # Returns a map like {"HpcBleed": "S17", ...}
     mapping = {}
     for col in [f'S{i}' for i in range(1, 22)]:
         mean = df[col].mean()

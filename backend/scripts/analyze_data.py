@@ -1,38 +1,21 @@
 import os
 import pandas as pd
-from neo4j import GraphDatabase, TrustAll
+from neo4j import GraphDatabase
 from dotenv import load_dotenv
 
-# 1. SETUP ENVIRONMENT & CREDENTIALS
 load_dotenv()
 URI = os.getenv("NEO4J_URI")
 USER = os.getenv("NEO4J_USERNAME")
 PWD = os.getenv("NEO4J_PASSWORD")
 
-# Definitive NASA C-MAPSS FD001 Column Map (0-indexed)
 column_map = {
     'T24': 6, 'T30': 7, 'T50': 8, 'P30': 11, 'Nf': 12,
     'Nc': 13, 'Ps30': 15, 'HpcBleed': 16, 'W31': 23, 'W32': 24
 }
 
-def _get_driver():
-    """
-    Returns a Neo4j driver with universal SSL handling.
-    Set NEO4J_TRUST_ALL=true in .env to bypass SSL cert verification
-    (required on some machines with self-signed cert chain issues).
-    """
-    if os.getenv("NEO4J_TRUST_ALL", "false").lower() == "true":
-        return GraphDatabase.driver(
-            URI.replace("neo4j+s://", "neo4j://"),
-            auth=(USER, PWD),
-            encrypted=True,
-            trusted_certificates=TrustAll()
-        )
-    return GraphDatabase.driver(URI, auth=(USER, PWD))
-
 def initialize_deep_knowledge_graph():
     """Wipes old flat data and builds the multi-layered structural engine schema."""
-    driver = _get_driver()
+    driver = GraphDatabase.driver(URI, auth=(USER, PWD))
     
     cleanup_query = "MATCH (n) DETACH DELETE n;"
     
@@ -125,7 +108,7 @@ def initialize_deep_knowledge_graph():
 
 def update_sensor_threshold(sensor_id, threshold):
     """Updates the calculated data threshold parameter on pre-existing schema structural nodes."""
-    driver = _get_driver()
+    driver = GraphDatabase.driver(URI, auth=(USER, PWD))
     try:
         with driver.session() as session:
             query = """
@@ -137,7 +120,6 @@ def update_sensor_threshold(sensor_id, threshold):
     finally:
         driver.close()
 
-# 2. ABSOLUTE PATH RESOLUTION
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
 def find_project_root(start_dir):
@@ -161,24 +143,22 @@ try:
     if not os.path.exists(data_path):
         print(f"CRITICAL ERROR: File not found at {data_path}")
     else:
-        # Run deep structural graph builder first
         initialize_deep_knowledge_graph()
 
         df = pd.read_csv(data_path, sep='\t', header=None, engine='python')
         print(f"DEBUG: Data loaded successfully. Shape: {df.shape}")
 
-        # Healthy baseline: Cycles 1-20
         healthy_df = df[df[1] <= 20]
 
         print("\n--- CALCULATING & SYNCING TELEMETRY THRESHOLDS ---")
         results = []
         for s, idx in column_map.items():
+            # Calculate threshold: mean * 1.01
             val = healthy_df[idx].mean() * 1.01
             print(f"Pushing calculated threshold for {s}: {val:.4f} to Neo4j...")
             update_sensor_threshold(s, val)
             results.append({'sensor': s, 'threshold': val})
 
-        # Save to CSV local reference backup
         pd.DataFrame(results).to_csv(output_path, index=False)
         print(f"\nDEBUG: Threshold reference backup saved locally to {output_path}")
         print("🎉 Phase 1 Complete: Structural Graph populated and calibrated successfully!")

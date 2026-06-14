@@ -1,11 +1,8 @@
 const API_BASE = "http://localhost:8000/api";
 
-// Core Variables to track session feedback state
 let extractedCurrentFault = null;
 let triggeredAnomaliesList = [];
 
-// Mirrors the exact CAUSES_ANOMALY edges defined in analyze_data.py
-// Only sensors listed here have a real edge in Neo4j for that fault
 const FAULT_SENSOR_MAP = {
     "LPC Blade Fouling":          ["T24", "Nf"],
     "HPC Structural Degradation": ["T30", "P30", "Nc", "Ps30", "HpcBleed"],
@@ -14,7 +11,6 @@ const FAULT_SENSOR_MAP = {
     "LPT Efficiency Loss":        ["T50", "W32"],
 };
 
-// All known valid sensor IDs — used to filter regex matches from query text
 const VALID_SENSORS = ["T24", "T30", "T50", "P30", "Nf", "Nc", "Ps30", "HpcBleed", "W31", "W32"];
 
 document.getElementById('send-btn').addEventListener('click', sendQuestion);
@@ -22,7 +18,6 @@ document.getElementById('user-input').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendQuestion();
 });
 
-// --- DYNAMIC DISCOVERY & QUERY LAYER ---
 async function sendQuestion() {
     const inputEl = document.getElementById('user-input');
     const chatOutput = document.getElementById('chat-output');
@@ -77,7 +72,6 @@ async function sendQuestion() {
     chatOutput.scrollTop = chatOutput.scrollHeight;
 }
 
-// --- ACTIVE REINFORCEMENT LEARNING PANEL CLICK LIFECYCLES ---
 document.getElementById('confirm-true-btn').addEventListener('click', () => submitGraphFeedback(true));
 document.getElementById('confirm-false-btn').addEventListener('click', () => submitGraphFeedback(false));
 
@@ -86,7 +80,6 @@ async function submitGraphFeedback(isCorrect) {
 
     const feedbackPanel = document.getElementById('feedback-panel');
 
-    // Get only the sensors that have a real edge to this fault in the KG
     const validSensorsForFault = FAULT_SENSOR_MAP[extractedCurrentFault] || [];
     const sensorsToUpdate = triggeredAnomaliesList.filter(s => validSensorsForFault.includes(s));
 
@@ -96,7 +89,6 @@ async function submitGraphFeedback(isCorrect) {
         return;
     }
 
-    // Send one feedback request per valid sensor-fault edge
     let lastWeight = null;
     for (const sensor of sensorsToUpdate) {
         try {
@@ -127,7 +119,6 @@ async function submitGraphFeedback(isCorrect) {
     feedbackPanel.style.display = "none";
 }
 
-// --- TIME-SERIES FILE INGESTION LOGIC ---
 document.getElementById('run-test-btn').addEventListener('click', async () => {
     const fileInput = document.getElementById('test-file-input');
     const logsOutput = document.getElementById('logs-output');
