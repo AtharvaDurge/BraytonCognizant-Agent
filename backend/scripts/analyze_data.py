@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, TrustAll
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,9 +13,24 @@ column_map = {
     'Nc': 13, 'Ps30': 15, 'HpcBleed': 16, 'W31': 23, 'W32': 24
 }
 
+def _get_driver():
+    """
+    Returns a Neo4j driver with universal SSL handling.
+    Set NEO4J_TRUST_ALL=true in .env to bypass SSL cert verification
+    (required on some machines with self-signed cert chain issues).
+    """
+    if os.getenv("NEO4J_TRUST_ALL", "false").lower() == "true":
+        return GraphDatabase.driver(
+            URI.replace("neo4j+s://", "neo4j://"),
+            auth=(USER, PWD),
+            encrypted=True,
+            trusted_certificates=TrustAll()
+        )
+    return GraphDatabase.driver(URI, auth=(USER, PWD))
+
 def initialize_deep_knowledge_graph():
     """Wipes old flat data and builds the multi-layered structural engine schema."""
-    driver = GraphDatabase.driver(URI, auth=(USER, PWD))
+    driver = _get_driver()
     
     cleanup_query = "MATCH (n) DETACH DELETE n;"
     
@@ -108,7 +123,7 @@ def initialize_deep_knowledge_graph():
 
 def update_sensor_threshold(sensor_id, threshold):
     """Updates the calculated data threshold parameter on pre-existing schema structural nodes."""
-    driver = GraphDatabase.driver(URI, auth=(USER, PWD))
+    driver = _get_driver()
     try:
         with driver.session() as session:
             query = """
@@ -153,7 +168,6 @@ try:
         print("\n--- CALCULATING & SYNCING TELEMETRY THRESHOLDS ---")
         results = []
         for s, idx in column_map.items():
-            # Calculate threshold: mean * 1.01
             val = healthy_df[idx].mean() * 1.01
             print(f"Pushing calculated threshold for {s}: {val:.4f} to Neo4j...")
             update_sensor_threshold(s, val)
