@@ -266,6 +266,7 @@ Incorrect fault  →  edge weight -= 0.05 × current_weight            [decays t
 This means the system gets more accurate with every diagnostic cycle — faults that are repeatedly confirmed develop stronger graph edges and become higher-priority candidates in future RCA runs.
 
 ---
+
 ## 🛠️ Troubleshooting
 
 ### SSL Certificate Verification Error
@@ -282,3 +283,11 @@ NEO4J_TRUST_ALL=true
 This is safe to use with Neo4j AuraDB — the connection remains fully encrypted. The flag only bypasses local certificate chain verification, which fails on some fresh Python installations (commonly Python 3.12 on Windows).
 
 ---
+
+## 🏛️ Acknowledgement
+
+This project was developed as part of a **Summer Internship** at the **EMC Lab**, [Veermata Jijabai Technological Institute (VJTI), Mumbai](https://vjti.ac.in/), under the guidance of **Prof. Madhavi Parimi and Dr. S.R. Wagh**.
+
+I sincerely thank them for their mentorship, domain expertise, and continuous support throughout this project.
+
+🔗 **EMC Lab Website:** [https://emcc.in/](https://emcc.in/)
