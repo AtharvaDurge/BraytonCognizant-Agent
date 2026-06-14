@@ -184,6 +184,7 @@ NEO4J_URI=neo4j+s://your-aura-instance.databases.neo4j.io
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_password
 GROQ_API_KEY=your_groq_api_key
+NEO4J_TRUST_ALL=false
 ```
 
 ---
@@ -211,8 +212,11 @@ python backend/scripts/analyze_data.py
 ### 4. Start the API Server
 
 ```bash
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+cd backend
+uvicorn main:app --reload
 ```
+
+> **Note:** The server must be started from the `backend/` directory so Python can resolve internal imports like `formatter` correctly.
 
 Server runs at `http://localhost:8000`. Open `frontend/index.html` in your browser for the operator dashboard.
 
@@ -262,11 +266,19 @@ Incorrect fault  →  edge weight -= 0.05 × current_weight            [decays t
 This means the system gets more accurate with every diagnostic cycle — faults that are repeatedly confirmed develop stronger graph edges and become higher-priority candidates in future RCA runs.
 
 ---
+## 🛠️ Troubleshooting
 
-## 🔒 Security Notes
+### SSL Certificate Verification Error
+If you see this error on a new machine:
+```
+ssl.SSLCertVerificationError: certificate verify failed: self-signed certificate in certificate chain
+```
 
-- `.env` is listed in `.gitignore` and must **never** be committed
-- Use `.env.example.txt` as the template for collaborators
-- `processed_data/` and `reports/` are excluded from version control as they contain operational data
+This is caused by Python not trusting the SSL certificate chain on your system. Fix it by adding this to your `.env`:
+```
+NEO4J_TRUST_ALL=true
+```
+
+This is safe to use with Neo4j AuraDB — the connection remains fully encrypted. The flag only bypasses local certificate chain verification, which fails on some fresh Python installations (commonly Python 3.12 on Windows).
 
 ---

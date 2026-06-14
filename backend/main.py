@@ -4,7 +4,7 @@ import pandas as pd
 from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, TrustAll
 from fastapi.middleware.cors import CORSMiddleware
 from formatter import get_clean_dataframe_from_bytes
 
@@ -29,11 +29,25 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _create_driver():
+    """
+    Returns a Neo4j driver with universal SSL handling.
+    Set NEO4J_TRUST_ALL=true in .env to bypass SSL cert verification
+    (required on some machines with self-signed cert chain issues).
+    """
+    uri = os.getenv("NEO4J_URI")
+    auth = (os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
+    if os.getenv("NEO4J_TRUST_ALL", "false").lower() == "true":
+        return GraphDatabase.driver(
+            uri.replace("neo4j+s://", "neo4j://"),
+            auth=auth,
+            encrypted=True,
+            trusted_certificates=TrustAll()
+        )
+    return GraphDatabase.driver(uri, auth=auth)
+
 # Global Neo4j Connection Driver Instance
-GLOBAL_DRIVER = GraphDatabase.driver(
-    os.getenv("NEO4J_URI"),
-    auth=(os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
-)
+GLOBAL_DRIVER = _create_driver()
 
 # --- PYDANTIC SCHEMAS ---
 class DiagnosticQuery(BaseModel):
@@ -99,17 +113,17 @@ async def process_user_uploaded_file(file: UploadFile = File(...)):
 
         # Correct NASA C-MAPSS column labels matching formatter.py headers
         sensor_graph_mapping = {
-    "T24":      "S2",   # col 6  — Total temp at LPC outlet
-    "T30":      "S3",   # col 7  — Total temp at HPC outlet
-    "T50":      "S4",   # col 8  — Total temp at LPT outlet
-    "P30":      "S7",   # col 11 — Total pressure at HPC outlet
-    "Nf":       "S8",   # col 12 — Physical fan speed
-    "Nc":       "S9",   # col 13 — Physical core speed
-    "Ps30":     "S11",  # col 15 — Static pressure at HPC outlet
-    "HpcBleed": "S12",  # col 16 — Ratio of fuel flow to Ps30  (was incorrectly S17)
-    "W31":      "S19",  # col 23 — HPT coolant bleed           (was incorrectly S20)
-    "W32":      "S20",  # col 24 — LPT coolant bleed           (was incorrectly S21)
-}
+            "T24":      "S2",   # col 6  — Total temp at LPC outlet
+            "T30":      "S3",   # col 7  — Total temp at HPC outlet
+            "T50":      "S4",   # col 8  — Total temp at LPT outlet
+            "P30":      "S7",   # col 11 — Total pressure at HPC outlet
+            "Nf":       "S8",   # col 12 — Physical fan speed
+            "Nc":       "S9",   # col 13 — Physical core speed
+            "Ps30":     "S11",  # col 15 — Static pressure at HPC outlet
+            "HpcBleed": "S12",  # col 16 — Ratio of fuel flow to Ps30
+            "W31":      "S19",  # col 23 — HPT coolant bleed
+            "W32":      "S20",  # col 24 — LPT coolant bleed
+        }
         ui_records = []
         for engine_id in test_df['unit'].unique():
             engine_data = test_df[test_df['unit'] == engine_id]
@@ -183,12 +197,10 @@ def process_marine_diagnostic(payload: DiagnosticQuery):
                     sensors = tool_args.get("breached_sensors", [])
                     observation = get_anomaly_implications.invoke({"breached_sensors": sensors})
                 elif tool_name == "trace_root_component_hierarchy":
-                    # Robust cleaning of input to prevent database mapping failures
                     fm_name = tool_args.get("failure_mode_name", "").strip()
                     print(f"DEBUG: Tracing hierarchy for: '{fm_name}'")
                     observation = trace_root_component_hierarchy.invoke({"failure_mode_name": fm_name})
 
-                    # Help the agent recover if the mapping fails
                     if "Could not map" in observation:
                         observation += " DEBUG: Verify the FailureMode name matches the node in the KG exactly."
                 else:

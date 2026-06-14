@@ -1,6 +1,6 @@
 import os
 from langchain_core.tools import tool
-from neo4j import GraphDatabase
+from neo4j import GraphDatabase, TrustAll, TrustSystemCAs
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,6 +9,18 @@ USER = os.getenv("NEO4J_USERNAME")
 PWD = os.getenv("NEO4J_PASSWORD")
 
 def _get_driver():
+    """
+    Returns a Neo4j driver with universal SSL handling.
+    Set NEO4J_TRUST_ALL=true in .env to bypass SSL cert verification
+    (required on some machines with self-signed cert chain issues).
+    """
+    if os.getenv("NEO4J_TRUST_ALL", "false").lower() == "true":
+        return GraphDatabase.driver(
+            URI.replace("neo4j+s://", "neo4j://"),
+            auth=(USER, PWD),
+            encrypted=True,
+            trusted_certificates=TrustAll()
+        )
     return GraphDatabase.driver(URI, auth=(USER, PWD))
 
 @tool
