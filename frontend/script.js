@@ -1,6 +1,5 @@
 const API_BASE = "http://localhost:8000/api";
 
-let extractedCurrentFault = null;
 let triggeredAnomaliesList = [];
 
 const FAULT_SENSOR_MAP = {
@@ -12,6 +11,28 @@ const FAULT_SENSOR_MAP = {
 };
 
 const VALID_SENSORS = ["T24", "T30", "T50", "P30", "Nf", "Nc", "Ps30", "HpcBleed", "W31", "W32"];
+
+/**
+ * Builds a reverse map: sensor -> [fault1, fault2, ...]
+ * so each triggered sensor can be updated under every fault that owns it.
+ */
+const SENSOR_FAULT_MAP = {};
+for (const [fault, sensors] of Object.entries(FAULT_SENSOR_MAP)) {
+    for (const sensor of sensors) {
+        if (!SENSOR_FAULT_MAP[sensor]) SENSOR_FAULT_MAP[sensor] = [];
+        SENSOR_FAULT_MAP[sensor].push(fault);
+    }
+}
+
+/**
+ * Extracts all valid sensor IDs mentioned anywhere in a block of text.
+ */
+function extractSensorsFromText(text) {
+    return VALID_SENSORS.filter(sensor => {
+        const pattern = new RegExp(`(?<![A-Za-z0-9])${sensor}(?![A-Za-z0-9])`, 'i');
+        return pattern.test(text);
+    });
+}
 
 document.getElementById('send-btn').addEventListener('click', sendQuestion);
 document.getElementById('user-input').addEventListener('keypress', (e) => {
@@ -26,7 +47,7 @@ async function sendQuestion() {
     if (!questionText) return;
 
     inputEl.value = "";
-    
+
     chatOutput.innerHTML += `<div class="message user-msg">${questionText}</div>`;
     chatOutput.scrollTop = chatOutput.scrollHeight;
 
@@ -41,27 +62,27 @@ async function sendQuestion() {
             body: JSON.stringify({ question: questionText })
         });
         const result = await response.json();
-        
+
         const targetLoader = document.getElementById(loadingId);
         if (result.status === "Success") {
             let cleanAnswer = result.diagnostic_answer;
-            
-            // Separate tracking metadata from human-readable text block
+
             if (cleanAnswer.includes("CONFIRMED_FAULT:")) {
                 const parts = cleanAnswer.split("CONFIRMED_FAULT:");
                 cleanAnswer = parts[0].trim();
-                extractedCurrentFault = parts[1].trim();
-                
-                // Extract only real sensor IDs from the query text, not random words
-                triggeredAnomaliesList = questionText
-                    .split(/[\s,]+/)
-                    .filter(token => VALID_SENSORS.includes(token));
 
-                // Show the human feedback configuration panel layout
-                document.getElementById('target-fault-display').innerText = extractedCurrentFault;
+                // Extract sensors from BOTH user query and full AI response text
+                const combinedText = questionText + " " + cleanAnswer;
+                triggeredAnomaliesList = extractSensorsFromText(combinedText);
+
+                console.log(`🔍 Sensors detected for feedback: [${triggeredAnomaliesList.join(", ")}]`);
+
+                // Show confirmed fault name from AI (display only)
+                const confirmedFaultLabel = parts[1].trim();
+                document.getElementById('target-fault-display').innerText = confirmedFaultLabel;
                 document.getElementById('feedback-panel').style.display = "block";
             }
-            
+
             targetLoader.innerText = cleanAnswer;
         } else {
             targetLoader.innerText = `❌ Error: ${result.diagnostic_answer}`;
@@ -76,45 +97,70 @@ document.getElementById('confirm-true-btn').addEventListener('click', () => subm
 document.getElementById('confirm-false-btn').addEventListener('click', () => submitGraphFeedback(false));
 
 async function submitGraphFeedback(isCorrect) {
-    if (!extractedCurrentFault) return;
-
     const feedbackPanel = document.getElementById('feedback-panel');
 
-    const validSensorsForFault = FAULT_SENSOR_MAP[extractedCurrentFault] || [];
-    const sensorsToUpdate = triggeredAnomaliesList.filter(s => validSensorsForFault.includes(s));
-
-    if (sensorsToUpdate.length === 0) {
-        console.warn(`No valid edges found for fault "${extractedCurrentFault}" with sensors: ${triggeredAnomaliesList}`);
+    if (!triggeredAnomaliesList.length) {
+        console.warn("No triggered sensors found — nothing to update.");
         feedbackPanel.style.display = "none";
         return;
     }
 
+    // Grab the actual text displayed in the latest assistant response block
+    const assistantMessages = document.querySelectorAll('.assistant-msg');
+    const diagnosticText = assistantMessages.length > 0 ? assistantMessages[assistantMessages.length - 1].innerText : "";
+
+    // For each triggered sensor, find ALL faults that own that sensor
+    // Filter out faults that weren't actively mentioned in the AI's diagnosis response.
+    const edgesToUpdate = [];
+    for (const sensor of triggeredAnomaliesList) {
+        const owningFaults = SENSOR_FAULT_MAP[sensor] || [];
+        for (const fault of owningFaults) {
+            // Only sync the edge if the fault was part of the final diagnosis printout
+            if (diagnosticText.includes(fault)) {
+                edgesToUpdate.push({ fault, sensor });
+            }
+        }
+    }
+
+    if (edgesToUpdate.length === 0) {
+        console.warn(`No active diagnosed graph edges found for sensors: [${triggeredAnomaliesList.join(", ")}]`);
+        feedbackPanel.style.display = "none";
+        return;
+    }
+
+    console.log(`📡 Updating ${edgesToUpdate.length} edge(s):`, edgesToUpdate);
+
+    let updatedCount = 0;
     let lastWeight = null;
-    for (const sensor of sensorsToUpdate) {
+    const updatedSensors = new Set();
+
+    for (const { fault, sensor } of edgesToUpdate) {
         try {
             const response = await fetch(`${API_BASE}/diagnose/feedback`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    failure_mode: extractedCurrentFault,
+                    failure_mode: fault,
                     sensor_id: sensor,
                     is_correct: isCorrect
                 })
             });
             const data = await response.json();
             if (data.status === "Success") {
+                updatedCount++;
                 lastWeight = data.new_weight;
-                console.log(`📈 Edge (${extractedCurrentFault} -> ${sensor}) updated to weight: ${data.new_weight}`);
+                updatedSensors.add(sensor);
+                console.log(`📈 Edge (${fault} -> ${sensor}) updated to weight: ${data.new_weight}`);
             } else {
-                console.warn(`⚠️ Skipped (${extractedCurrentFault} -> ${sensor}): ${data.message}`);
+                console.warn(`⚠️ Skipped (${fault} -> ${sensor}): ${data.message}`);
             }
         } catch (err) {
-            console.error(`Feedback transmission failed for sensor ${sensor}:`, err);
+            console.error(`Feedback transmission failed for (${fault} -> ${sensor}):`, err);
         }
     }
 
-    if (lastWeight !== null) {
-        alert(`📈 Graph Learning Sync: ${sensorsToUpdate.length} edge(s) updated. Latest weight: ${lastWeight}`);
+    if (updatedCount > 0) {
+        alert(`📈 Graph Learning Sync: ${updatedCount} edge(s) updated.\nSensors: [${[...updatedSensors].join(", ")}]\nLatest weight: ${lastWeight}`);
     }
     feedbackPanel.style.display = "none";
 }
